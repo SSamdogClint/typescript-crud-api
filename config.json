@@ -1,0 +1,10 @@
+{
+    "database": {
+        "host": "localhost",
+        "port": 3306,
+        "user": "root",
+        "password": "P@ssw0rd123!",
+        "database": "typescript_crid_api"
+    },
+    "jwtSecret": "6d6046898f46aab3bcb65719bde9c5a75a7b5a1d5e602d3d648908474d2e457a"
+}
