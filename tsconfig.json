@@ -46,7 +46,7 @@
       "_middleware/*": ["_middleware/*"],
       "users/*": ["users/*"]
     },
-    "verbatimModuleSyntax": true,
+    "verbatimModuleSyntax": false,
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
