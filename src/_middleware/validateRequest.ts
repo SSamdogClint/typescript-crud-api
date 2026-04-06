@@ -10,7 +10,7 @@ export function validateRequest(
     const options = {
         abortEarly: false,
         allowUnknown: true,
-        stringUnknown: true,
+        stripUnknown: true,
     };
 
     const { error, value } = schema.validate(req.body, options);
