@@ -4,19 +4,31 @@ import cors from 'cors';
 import { errorHandler } from './_middleware/errorHandler';
 import { initialize } from './_helpers/db';
 import usersController from './users/users.controller';
+import authController from './auth/auth.controller';
+import departmentsController from './departments/departments.controller';
+import employeesController from './employees/employees.controller';
+import requestsController from './requests/requests.controller';
 
 const app: Application = express();
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors());
+app.use(cors({
+    origin: ['http://127.0.0.1:5500', 'http://localhost:5500']
+}));
+app.use(express.static('public'));
 
 // API ROUTES
 app.use('/users', usersController);
+app.use('/auth', authController);
+app.use('/departments', departmentsController);
+app.use('/employees', employeesController);
+app.use('/requests', requestsController);
 
 //Global Error Handler (must be last)
 app.use(errorHandler);
+
 
 // Start Server + Initialize Database
 const PORT = process.env.PORT || 4000;
