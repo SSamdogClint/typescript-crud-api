@@ -1,9 +1,7 @@
 // src/users/users.model.ts
-//import e from "cors";
-//import { extend } from "joi";
 import { DataType, DataTypes, Model, Optional } from "sequelize";
 import type { Sequelize } from 'sequelize';
-//import { OptionsForMapping } from "sequelize/types/utils";
+
 
 // this part are the attributes of the interfaces
 export interface UserAttributes {
