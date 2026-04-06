@@ -2,7 +2,6 @@ import bcrypt from 'bcryptjs';
 import { db } from '../_helpers/db';
 import { Role } from '../_helpers/role';
 import { User, UserCreationAttributes } from './user.model';
-import { where } from 'sequelize';
 
 export const userService = {
     getAll,
@@ -40,12 +39,13 @@ async function create(params: UserCreationAttributes & { password: string }): Pr
     } as UserCreationAttributes);
 }
 
-async function update(id: number, params: Partial<UserCreationAttributes> & { passwprd?: string }): Promise<void> {
+async function update(id: number, params: Partial<UserCreationAttributes> & { password?: string }): Promise<void> {
     const user = await getUser(id);
 
     // hash if new password is provided
-    if (params.passwprd) {
-        params.passwordHash = await bcrypt.hash(params.passwprd, 10);
+    if (params.password) {
+        params.passwordHash = await bcrypt.hash(params.password, 10);
+        delete params.password;
     }
 
     // Update User
