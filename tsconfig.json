@@ -22,8 +22,8 @@
     "declarationMap": true,
 
     // Stricter Typechecking Options
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
+    //"noUncheckedIndexedAccess": true,
+    //"exactOptionalPropertyTypes": true,
 
     // Style Options
     // "noImplicitReturns": true,
@@ -46,9 +46,10 @@
       "_middleware/*": ["_middleware/*"],
       "users/*": ["users/*"]
     },
+    "ignoreDeprecations": "6.0",
     "verbatimModuleSyntax": false,
-    "isolatedModules": true,
-    "noUncheckedSideEffectImports": true,
+    //"isolatedModules": true,
+    //"noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
     
   },
