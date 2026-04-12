@@ -2,6 +2,7 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import { errorHandler } from './_middleware/errorHandler';
+import { authenticateToken, authorizeRole } from './_middleware/auth';
 import { initialize } from './_helpers/db';
 import usersController from './users/users.controller';
 import authController from './auth/auth.controller';
@@ -18,13 +19,22 @@ app.use(cors({
     origin: ['http://127.0.0.1:5500', 'http://localhost:5500']
 }));
 app.use(express.static('public'));
-
+    
 // API ROUTES
-app.use('/users', usersController);
 app.use('/auth', authController);
-app.use('/departments', departmentsController);
-app.use('/employees', employeesController);
-app.use('/requests', requestsController);
+app.use('/users', authenticateToken, usersController);
+app.use('/departments', authenticateToken, departmentsController);
+app.use('/employees', authenticateToken, employeesController);
+app.use('/requests', authenticateToken, requestsController);
+
+// 🔓 FOR TESTING ONLY:
+// 👉 Erase "//" below to make all routes PUBLIC (no JWT required)
+// 👉 Also comment the protected routes above
+
+// app.use('/users', usersController);
+// app.use('/departments', departmentsController);
+// app.use('/employees', employeesController);
+// app.use('/requests', requestsController);
 
 //Global Error Handler (must be last)
 app.use(errorHandler);
