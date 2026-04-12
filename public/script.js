@@ -1,59 +1,24 @@
 // Stores the currently logged in user
 let currentUser = null;
 
-// Key used to store database in localStorage
-const STORAGE_KEY = "ipt_demo_v1";
-
 // Routes that require login
 const login_hash = ['#/userProfile', '#/request'];
 
 // Routes that require admin role
 const admin_hash = ['#/accounts', '#/employees', '#/departments'];
 
-// ===============================
-// LOCAL STORAGE DATABASE
-// ===============================
-function saveToStorage() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(window.db));
-}
-
-// Retrieve saved data from localStorage
-function loadFromStorage() {
-    try {
-        const data = localStorage.getItem(STORAGE_KEY);
-        if (data) {
-            window.db = JSON.parse(data);
-        } else {
-            throw new Error("No data");
-        }
-    } catch (e) {
-        window.db = {
-            accounts: [
-                {
-                    // default admin account
-                    email: "admin@example.com",
-                    password: "Password123!",
-                    verified: true,
-                    role: "admin",
-                    Fname: "Admin",
-                    Lname: "123"
-                }
-            ],
-            departments: [
-                { id: 1, name: "Engineering", description: "software team" },
-                { id: 2, name: "HR", description: "Human resources" }
-            ],
-            employees: [],
-            requests: []
-        };
-        saveToStorage();
-    }
-}
-loadFromStorage();
-
 // Change the URL hash to navigate to a different page/section
 function navigateTo(hash) {
     window.location.hash = hash;
+}
+
+// helper function to get auth headers
+function authHeaders() {
+    const token = sessionStorage.getItem('auth_token');
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+    };
 }
 
 // Display the current user's profile information when the profile page is opened
@@ -64,70 +29,55 @@ function renderProfile() {
     const profileEmail = document.getElementById('profile-email');
     const profileRole = document.getElementById('profile-role');
 
-    // Check if the element exists before updating the profile data
     if (NameDisplay) {
-        NameDisplay.innerText = currentUser.Fname; // Display user's first name in the navigation bar
-        profileClass.innerText = currentUser.role; // Show the user's role/class
-        profileName.innerText = currentUser.Fname + " " + currentUser.Lname; // Display full name
-        profileEmail.innerText = currentUser.email; // Display user email address
-        profileRole.innerText = currentUser.role; // Display the role assigned to the user
+        NameDisplay.innerText = currentUser.Fname;
+        profileClass.innerText = currentUser.role;
+        profileName.innerText = currentUser.Fname + " " + currentUser.Lname;
+        profileEmail.innerText = currentUser.email;
+        profileRole.innerText = currentUser.role;
     }
-
 }
 
-
-// Update the authentication state of the application (logged in user or admin)
+// Update the authentication state of the application
 function setAuthState(user) {
     currentUser = user;
     const body = document.body;
     body.classList.remove('not-authenticated', 'authenticated', 'is-admin');
 
-
-    // if user log in
     if (currentUser) {
-        // Add class indicating that the user is authenticated
         body.classList.add('authenticated');
-        renderProfile(); // Display the logged-in user's profile information
-        
-        // If the logged-in user has an admin role, apply admin styling/access
+        renderProfile();
         if (currentUser.role === 'admin') {
-            body.classList.add('is-admin')
+            body.classList.add('is-admin');
         }
-    } else { 
-        // If no user is logged in, mark the page as not authenticated
+    } else {
         body.classList.add('not-authenticated');
-        localStorage.removeItem('auth_token'); // Remove stored authentication token from localStorage
+        sessionStorage.removeItem('auth_token'); // sessionStorage
+        sessionStorage.removeItem('current_user'); // sessionStorage
     }
 
-    handleRouting(); // Update the visible page based on the current route
+    handleRouting();
 }
 
 function handleRouting() {
     const hash = window.location.hash || '#/';
     console.log("location:" + hash);
 
-    // cant access other pages without login
     if ((login_hash.includes(hash) || admin_hash.includes(hash)) && !currentUser) {
         navigateTo('#/');
         return;
     }
 
-    // cant acces admin pages if not admin role
     if (admin_hash.includes(hash) && currentUser.role !== 'admin') {
         navigateTo('#/userProfile');
         return;
     }
 
-
-    // select pages
     const pages = document.querySelectorAll(".page");
-    // select the alert class
-    const verifyAlert = document.getElementById("verified-alert") // only show when email is verified
+    const verifyAlert = document.getElementById("verified-alert");
 
-    // hide pages
     pages.forEach(page => page.classList.remove('active'));
 
-    // switch between section id
     let sectionId;
     if (hash === '#/' || hash === '') {
         sectionId = "homePage";
@@ -154,8 +104,6 @@ function handleRouting() {
         renderRequests();
     }
 
-    // show only when done with email verification
-    // check if the hash includes a query string before displaying the alert
     if (verifyAlert) {
         if (hash.includes('verified=true')) {
             verifyAlert.style.display = 'block';
@@ -164,16 +112,16 @@ function handleRouting() {
         }
     }
 
-    // show page
     const activePage = document.getElementById(sectionId);
     if (activePage) {
-        activePage.classList.add('active'); // add active to the class
+        activePage.classList.add('active');
     }
 }
-// to stop being loged out incase of refresh
+
+// Restore session on page load
 window.addEventListener('load', () => {
-    const token = localStorage.getItem('auth_token');
-    const savedUser = localStorage.getItem('current_user');
+    const token = sessionStorage.getItem('auth_token'); // 👈 sessionStorage
+    const savedUser = sessionStorage.getItem('current_user'); // 👈 sessionStorage
 
     if (!window.location.hash || window.location.hash === '#') {
         window.location.replace('#/');
@@ -187,7 +135,8 @@ window.addEventListener('load', () => {
 });
 window.addEventListener('hashchange', handleRouting);
 
-// Authentication
+// ====[ AUTHENTICATION ]====
+// Register
 async function registration(event) {
     event.preventDefault();
     const inputTitle = document.getElementById('title').value;
@@ -198,7 +147,6 @@ async function registration(event) {
     const inputConfirmPassword = document.getElementById('confirmPassword').value;
     const regForm = document.getElementById('regFrom');
 
-    // client side validation
     if (inputPassword !== inputConfirmPassword) {
         alert('Passwords do not match!');
         return;
@@ -212,7 +160,7 @@ async function registration(event) {
     try {
         const response = await fetch('http://localhost:4000/users', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify({
                 title: inputTitle,
                 firstName: inputFname,
@@ -227,17 +175,7 @@ async function registration(event) {
         const data = await response.json();
 
         if (response.ok) {
-            // keep local copy for other features
-            const newAccount = {
-                Fname: inputFname,
-                Lname: inputLname,
-                email: inputEmail,
-                verified: false,
-                role: 'user'
-            };
-            window.db.accounts.push(newAccount);
-            saveToStorage();
-            localStorage.setItem('unverified_email', inputEmail);
+            sessionStorage.setItem('unverified_email', inputEmail); // 👈 sessionStorage
             document.getElementById('showEmail').innerText = inputEmail;
             regForm.reset();
             navigateTo('#/verify');
@@ -250,7 +188,7 @@ async function registration(event) {
     }
 }
 
-// login account
+// Login
 async function login(event) {
     event.preventDefault();
     const userEmail = document.getElementById('loginEmail').value;
@@ -260,7 +198,7 @@ async function login(event) {
     try {
         const response = await fetch('http://localhost:4000/auth/login', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify({
                 email: userEmail,
                 password: userPassword
@@ -271,16 +209,16 @@ async function login(event) {
 
         if (response.ok) {
             const user = {
-                Fname: data.firstName,
-                Lname: data.lastName,
-                email: data.email,
-                role: data.role === 'Admin' ? 'admin' : 'user',
+                Fname: data.user.firstName,
+                Lname: data.user.lastName,
+                email: data.user.email,
+                role: data.user.role === 'Admin' ? 'admin' : 'user',
                 verified: true,
-                id: data.id
+                id: data.user.id
             };
 
-            localStorage.setItem('auth_token', userEmail);
-            localStorage.setItem('current_user', JSON.stringify(user));
+            sessionStorage.setItem('auth_token', data.token); // 👈 sessionStorage
+            sessionStorage.setItem('current_user', JSON.stringify(user)); // 👈 sessionStorage
             showLoginToast();
             setAuthState(user);
             loginForm.reset();
@@ -295,15 +233,229 @@ async function login(event) {
     }
 }
 
-// logout function
+// Logout
 function logout() {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('current_user');
+    sessionStorage.removeItem('auth_token'); // 👈 sessionStorage
+    sessionStorage.removeItem('current_user'); // 👈 sessionStorage
     setAuthState(null);
     navigateTo('#/');
 }
 
-// adding account via admin account page 
+// Verify email
+function verifyEmail() {
+    const findEmail = sessionStorage.getItem('unverified_email'); // 👈 sessionStorage
+
+    if (findEmail) {
+        sessionStorage.removeItem('unverified_email'); // 👈 sessionStorage
+        console.log("Account verified:" + findEmail);
+        navigateTo('#/login?verified=true');
+    } else {
+        alert('No email to verify');
+    }
+}
+
+// Toast message for successful login
+function showLoginToast() {
+    const loginToast = document.getElementById('login-toast');
+    const showToast = new bootstrap.Toast(loginToast, {
+        autohide: true,
+        delay: 1000
+    });
+    showToast.show();
+    console.log("show toast");
+}
+
+// Edit profile
+function editProfile() {
+    alert("changed to Edit profile page!");
+}
+
+// ====[ DEPARTMENTS FUNCTIONALITIES (depFunc) ]====
+async function renderDepartments() {
+    const tableBody = document.getElementById('department-table-body');
+    if (!tableBody) return;
+
+    tableBody.innerHTML = '<tr><td colspan="3" class="text-center">Loading...</td></tr>';
+
+    try {
+        const response = await fetch('http://localhost:4000/departments', {
+            headers: authHeaders()
+        });
+        const depts = await response.json();
+
+        tableBody.innerHTML = '';
+
+        depts.forEach((dept) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${dept.name}</td>
+                <td>${dept.description || 'No description available'}</td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="editDepartment(${dept.id})">Edit</button>
+                    <button type="button" class="btn btn-sm btn-danger" onclick="deleteDepartment(${dept.id})">Delete</button>
+                </td>
+            `;
+            tableBody.appendChild(row);
+        });
+    } catch (err) {
+        tableBody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Failed to load departments</td></tr>';
+        console.error(err);
+    }
+}
+
+let editingDeptId = null;
+
+function openAddDepartment() {
+    editingDeptId = null;
+    document.getElementById('department-modal-title').innerText = "Add Department";
+    document.getElementById('departmentForm').reset();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('department-modal')).show();
+}
+
+async function editDepartment(id) {
+    try {
+        const response = await fetch(`http://localhost:4000/departments/${id}`, {
+            headers: authHeaders()
+        });
+        const dept = await response.json();
+
+        editingDeptId = id;
+        document.getElementById('department-modal-title').innerText = "Edit Department";
+        document.getElementById('deptName').value = dept.name;
+        document.getElementById('deptDescription').value = dept.description || '';
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('department-modal')).show();
+    } catch (err) {
+        alert('Failed to load department');
+        console.error(err);
+    }
+}
+
+async function saveDepartment() {
+    const name = document.getElementById('deptName').value.trim();
+    const description = document.getElementById('deptDescription').value.trim();
+
+    if (!name) {
+        alert("Department name is required.");
+        return;
+    }
+
+    try {
+        const url = editingDeptId
+            ? `http://localhost:4000/departments/${editingDeptId}`
+            : 'http://localhost:4000/departments';
+
+        const method = editingDeptId ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method,
+            headers: authHeaders(),
+            body: JSON.stringify({ name, description })
+        });
+
+        if (response.ok) {
+            renderDepartments();
+            bootstrap.Modal.getInstance(document.getElementById('department-modal')).hide();
+            document.getElementById('departmentForm').reset();
+            editingDeptId = null;
+        } else {
+            const data = await response.json();
+            alert(data.message || 'Failed to save department');
+        }
+    } catch (err) {
+        alert('Server error. Is the backend running?');
+        console.error(err);
+    }
+}
+
+async function deleteDepartment(id) {
+    if (confirm("Are you sure you want to delete this department?")) {
+        try {
+            const response = await fetch(`http://localhost:4000/departments/${id}`, {
+                method: 'DELETE',
+                headers: authHeaders()
+            });
+
+            if (response.ok) {
+                renderDepartments();
+            } else {
+                const data = await response.json();
+                alert(data.message || 'Failed to delete department');
+            }
+        } catch (err) {
+            alert('Server error. Is the backend running?');
+            console.error(err);
+        }
+    }
+}
+
+// ====[ ACCOUNTS FUNCTIONALITIES (accFunc) ]====
+async function renderAccounts() {
+    const tableBody = document.getElementById('account-table-body');
+    if (!tableBody) return;
+
+    tableBody.innerHTML = '<tr><td colspan="5" class="text-center">Loading...</td></tr>';
+
+    try {
+        const response = await fetch('http://localhost:4000/users', {
+            headers: authHeaders()
+        });
+        const users = await response.json();
+
+        tableBody.innerHTML = '';
+
+        users.forEach((acc, index) => {
+            const isSelf = currentUser && acc.email === currentUser.email;
+            const row = document.createElement('tr');
+
+            row.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${acc.firstName} ${acc.lastName}<br><small class="text-muted">${acc.email}</small></td>
+                <td><span class="badge bg-secondary">${acc.role}</span></td>
+                <td><span class="text-success">&#9989;</span></td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary" onclick="openEditAccount(${acc.id})">Edit</button>
+                        <button class="btn btn-outline-warning" onclick="resetPassword(${acc.id}, '${acc.email}')">Reset Password</button>
+                        <button class="btn btn-outline-danger" ${isSelf ? 'disabled' : ''} onclick="deleteAccount(${acc.id}, '${acc.email}')">Delete</button>
+                    </div>
+                </td>
+            `;
+            tableBody.appendChild(row);
+        });
+    } catch (err) {
+        tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Failed to load accounts</td></tr>';
+        console.error(err);
+    }
+}
+
+let editingAccountId = null;
+
+window.openEditAccount = async function (id) {
+    try {
+        const response = await fetch(`http://localhost:4000/users/${id}`, {
+            method: 'GET',
+            headers: authHeaders()
+        });
+        const acc = await response.json();
+
+        editingAccountId = id;
+
+        document.getElementById('accFname').value = acc.firstName;
+        document.getElementById('accLname').value = acc.lastName;
+        document.getElementById('accEmail').value = acc.email;
+        document.getElementById('accEmail').readOnly = true;
+        document.getElementById('accPassword').value = '';
+        document.getElementById('accRole').value = acc.role === 'Admin' ? 'admin' : 'user';
+        document.getElementById('isVerified').checked = true;
+
+        document.querySelector('#account-modal .modal-title').innerText = "Edit Account";
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('account-modal')).show();
+    } catch (err) {
+        alert('Failed to load account details');
+        console.error(err);
+    }
+};
+
 async function addAccount() {
     const accFname = document.getElementById('accFname').value;
     const accLname = document.getElementById('accLname').value;
@@ -317,7 +469,7 @@ async function addAccount() {
         try {
             const response = await fetch(`http://localhost:4000/users/${editingAccountId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: authHeaders(),
                 body: JSON.stringify({
                     firstName: accFname,
                     lastName: accLname,
@@ -343,7 +495,7 @@ async function addAccount() {
         return;
     }
 
-    // ADD mode validation
+    // ADD mode
     if (accPassword.length < 6) {
         alert("Password must be at least 6 characters!");
         return;
@@ -357,7 +509,7 @@ async function addAccount() {
     try {
         const response = await fetch('http://localhost:4000/users', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify({
                 title: 'Mr',
                 firstName: accFname,
@@ -392,230 +544,8 @@ function openAddAccount() {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('account-modal')).show();
 }
 
-// verify email
-function verifyEmail() {
-    const findEmail = localStorage.getItem('unverified_email');
-    const user = window.db.accounts.find(acc => acc.email === findEmail);
-
-    // set the email verified to true
-    if (user) {
-        user.verified = true;
-
-        // save to local storage
-        saveToStorage();
-        localStorage.removeItem("unverified_email"); // remove the temp unvrified email
-        console.log("Account verified:" + findEmail);
-
-        navigateTo('#/login?verified=true');
-    }
-}
-
-// toast message for succesful login
-function showLoginToast() {
-    const loginToast = document.getElementById('login-toast');
-    const showToast = new bootstrap.Toast(loginToast, {
-        autohide: true,
-        delay: 1000
-    });
-    showToast.show();
-    console.log("show toast");
-}
-
-// edit profile
-function editProfile() {
-    alert("changed to Edit profile page!");
-}
-
-
-
-
-// ====[ DEPARTMENTS FUNCTIONALITIES (depFunc) ]====
-// Render departments from API
-async function renderDepartments() {
-    const tableBody = document.getElementById('department-table-body');
-    if (!tableBody) return;
-
-    tableBody.innerHTML = '<tr><td colspan="3" class="text-center">Loading...</td></tr>';
-
-    try {
-        const response = await fetch('http://localhost:4000/departments');
-        const depts = await response.json();
-
-        tableBody.innerHTML = '';
-
-        depts.forEach((dept) => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${dept.name}</td>
-                <td>${dept.description || 'No description available'}</td>
-                <td>
-                    <button type="button" class="btn btn-sm btn-primary" onclick="editDepartment(${dept.id})">Edit</button>
-                    <button type="button" class="btn btn-sm btn-danger" onclick="deleteDepartment(${dept.id})">Delete</button>
-                </td>
-            `;
-            tableBody.appendChild(row);
-        });
-    } catch (err) {
-        tableBody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Failed to load departments</td></tr>';
-        console.error(err);
-    }
-}
-
-let editingDeptId = null;
-
-function openAddDepartment() {
-    editingDeptId = null;
-    document.getElementById('department-modal-title').innerText = "Add Department";
-    document.getElementById('departmentForm').reset();
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('department-modal')).show();
-}
-
-async function editDepartment(id) {
-    try {
-        const response = await fetch(`http://localhost:4000/departments/${id}`);
-        const dept = await response.json();
-
-        editingDeptId = id;
-        document.getElementById('department-modal-title').innerText = "Edit Department";
-        document.getElementById('deptName').value = dept.name;
-        document.getElementById('deptDescription').value = dept.description || '';
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('department-modal')).show();
-    } catch (err) {
-        alert('Failed to load department');
-        console.error(err);
-    }
-}
-
-async function saveDepartment() {
-    const name = document.getElementById('deptName').value.trim();
-    const description = document.getElementById('deptDescription').value.trim();
-
-    if (!name) {
-        alert("Department name is required.");
-        return;
-    }
-
-    try {
-        const url = editingDeptId
-            ? `http://localhost:4000/departments/${editingDeptId}`
-            : 'http://localhost:4000/departments';
-
-        const method = editingDeptId ? 'PUT' : 'POST';
-
-        const response = await fetch(url, {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, description })
-        });
-
-        if (response.ok) {
-            renderDepartments();
-            bootstrap.Modal.getInstance(document.getElementById('department-modal')).hide();
-            document.getElementById('departmentForm').reset();
-            editingDeptId = null;
-        } else {
-            const data = await response.json();
-            alert(data.message || 'Failed to save department');
-        }
-    } catch (err) {
-        alert('Server error. Is the backend running?');
-        console.error(err);
-    }
-}
-
-async function deleteDepartment(id) {
-    if (confirm("Are you sure you want to delete this department?")) {
-        try {
-            const response = await fetch(`http://localhost:4000/departments/${id}`, {
-                method: 'DELETE'
-            });
-
-            if (response.ok) {
-                renderDepartments();
-            } else {
-                const data = await response.json();
-                alert(data.message || 'Failed to delete department');
-            }
-        } catch (err) {
-            alert('Server error. Is the backend running?');
-            console.error(err);
-        }
-    }
-}
-
-
-
-
-// ====[ ACCOUNTS FUNCTIONALITIES (accFunc) ]====
-// Render the accounts table on the admin Accounts page
-async function renderAccounts() {
-    const tableBody = document.getElementById('account-table-body');
-    if (!tableBody) return;
-
-    tableBody.innerHTML = '<tr><td colspan="5" class="text-center">Loading...</td></tr>';
-
-    try {
-        const response = await fetch('http://localhost:4000/users');
-        const users = await response.json();
-
-        tableBody.innerHTML = '';
-
-        users.forEach((acc, index) => {
-            const isSelf = currentUser && acc.email === currentUser.email;
-            const row = document.createElement('tr');
-
-            row.innerHTML = `
-                <td>${index + 1}</td>
-                <td>${acc.firstName} ${acc.lastName}<br><small class="text-muted">${acc.email}</small></td>
-                <td><span class="badge bg-secondary">${acc.role}</span></td>
-                <td><span class="text-success">&#9989;</span></td>
-                <td>
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-primary" onclick="openEditAccount(${acc.id})">Edit</button>
-                        <button class="btn btn-outline-warning" onclick="resetPassword(${acc.id}, '${acc.email}')">Reset Password</button>
-                        <button class="btn btn-outline-danger" ${isSelf ? 'disabled' : ''} onclick="deleteAccount(${acc.id}, '${acc.email}')">Delete</button>
-                    </div>
-                </td>
-            `;
-            tableBody.appendChild(row);
-        });
-    } catch (err) {
-        tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Failed to load accounts</td></tr>';
-        console.error(err);
-    }
-}
-
-// Open the account edit modal and populate it with existing account data
-let editingAccountId = null;
-
-window.openEditAccount = async function (id) {
-    try {
-        const response = await fetch(`http://localhost:4000/users/${id}`);
-        const acc = await response.json();
-
-        editingAccountId = id;
-
-        document.getElementById('accFname').value = acc.firstName;
-        document.getElementById('accLname').value = acc.lastName;
-        document.getElementById('accEmail').value = acc.email;
-        document.getElementById('accEmail').readOnly = true;
-        document.getElementById('accPassword').value = '';
-        document.getElementById('accRole').value = acc.role === 'Admin' ? 'admin' : 'user';
-        document.getElementById('isVerified').checked = true;
-
-        document.querySelector('#account-modal .modal-title').innerText = "Edit Account";
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('account-modal')).show();
-    } catch (err) {
-        alert('Failed to load account details');
-        console.error(err);
-    }
-};
-
-// Reset a user's password by prompting for a new one
-// stores the id for reset password
 let resettingAccountId = null;
 
-// open reset password modal
 window.resetPassword = function (id, email) {
     resettingAccountId = id;
     document.getElementById('resetPasswordForm').reset();
@@ -623,7 +553,6 @@ window.resetPassword = function (id, email) {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('reset-password-modal')).show();
 };
 
-// submit reset password
 window.submitResetPassword = async function () {
     const newPw = document.getElementById('newPassword').value;
     const confirmPw = document.getElementById('newConfirmPassword').value;
@@ -641,7 +570,7 @@ window.submitResetPassword = async function () {
     try {
         const response = await fetch(`http://localhost:4000/users/${resettingAccountId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify({
                 password: newPw,
                 confirmPassword: confirmPw
@@ -663,7 +592,6 @@ window.submitResetPassword = async function () {
     }
 };
 
-// Delete a user account by email
 window.deleteAccount = async function (id, email) {
     if (currentUser && email === currentUser.email) {
         alert("You cannot delete your own account while logged in.");
@@ -675,7 +603,8 @@ window.deleteAccount = async function (id, email) {
     if (confirmed) {
         try {
             const response = await fetch(`http://localhost:4000/users/${id}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: authHeaders()
             });
 
             if (response.ok) {
@@ -692,11 +621,7 @@ window.deleteAccount = async function (id, email) {
     }
 };
 
-
-
-
 // ====[ EMPLOYEES FUNCTIONALITIES (empFunc) ]====
-// Render the employee table
 async function renderEmployees() {
     const tableBody = document.getElementById('employee-table-body');
     if (!tableBody) return;
@@ -705,9 +630,9 @@ async function renderEmployees() {
 
     try {
         const [empResponse, deptResponse, userResponse] = await Promise.all([
-            fetch('http://localhost:4000/employees'),
-            fetch('http://localhost:4000/departments'),
-            fetch('http://localhost:4000/users')
+            fetch('http://localhost:4000/employees', { headers: authHeaders() }),
+            fetch('http://localhost:4000/departments', { headers: authHeaders() }),
+            fetch('http://localhost:4000/users', { headers: authHeaders() })
         ]);
 
         const employees = await empResponse.json();
@@ -746,7 +671,6 @@ async function renderEmployees() {
     }
 }
 
-// Populate department dropdown from API
 async function populateDeptDropdown() {
     const deptSelect = document.getElementById('employeeDepartment');
     if (!deptSelect) return;
@@ -754,7 +678,9 @@ async function populateDeptDropdown() {
     deptSelect.innerHTML = '';
 
     try {
-        const response = await fetch('http://localhost:4000/departments');
+        const response = await fetch('http://localhost:4000/departments', {
+            headers: authHeaders()
+        });
         const departments = await response.json();
 
         departments.forEach(dept => {
@@ -768,7 +694,6 @@ async function populateDeptDropdown() {
     }
 }
 
-// Save employee
 window.saveEmployee = async function () {
     const empId = document.getElementById('employeeId').value;
     const email = document.getElementById('employeeEmail').value;
@@ -782,8 +707,9 @@ window.saveEmployee = async function () {
     }
 
     try {
-        // check if user exists in backend
-        const userResponse = await fetch('http://localhost:4000/users');
+        const userResponse = await fetch('http://localhost:4000/users', {
+            headers: authHeaders()
+        });
         const users = await userResponse.json();
         const userExists = users.some(u => u.email === email);
 
@@ -794,7 +720,7 @@ window.saveEmployee = async function () {
 
         const response = await fetch('http://localhost:4000/employees', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify({
                 employeeId: empId,
                 userEmail: email,
@@ -822,12 +748,12 @@ window.saveEmployee = async function () {
     }
 };
 
-// Delete employee
 window.deleteEmployee = async function (id) {
     if (confirm("Permanently remove this employee record?")) {
         try {
             const response = await fetch(`http://localhost:4000/employees/${id}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: authHeaders()
             });
 
             if (response.ok) {
@@ -851,7 +777,34 @@ function getStatusBadge(status) {
 }
 
 // ====[ REQUEST FUNCTIONALITIES (reqFunc) ]====
-// Render requests page for both users and admins
+window.addRequestItemRow = function () {
+    const container = document.getElementById('dynamic-items-container');
+    const rowId = Date.now();
+
+    const html = `
+        <div class="row g-2 mb-2 align-items-center" id="row-${rowId}">
+            <div class="col-8">
+                <input type="text" class="form-control form-control-sm item-name" placeholder="Item Name" required>
+            </div>
+            <div class="col-3">
+                <input type="number" class="form-control form-control-sm item-qty" value="1" min="1">
+            </div>
+            <div class="col-1 text-end">
+                <button type="button" class="btn-close" style="font-size:0.6rem" onclick="document.getElementById('row-${rowId}').remove()"></button>
+            </div>
+        </div>`;
+
+    container.insertAdjacentHTML('beforeend', html);
+};
+
+window.openRequestModal = function () {
+    const container = document.getElementById('dynamic-items-container');
+    container.querySelectorAll('.row').forEach(row => row.remove());
+    addRequestItemRow();
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('request-modal'));
+    modal.show();
+};
+
 window.renderRequests = async function () {
     const userView = document.getElementById('user-request-view');
     const adminView = document.getElementById('admin-request-view');
@@ -864,13 +817,14 @@ window.renderRequests = async function () {
     if (!emptyView || !tableView || !currentUser) return;
 
     try {
-        // Admin view
         if (currentUser.role === 'admin') {
             userView.style.display = 'none';
             adminView.style.display = 'block';
             hideRequest.style.display = 'none';
 
-            const response = await fetch('http://localhost:4000/requests');
+            const response = await fetch('http://localhost:4000/requests', {
+                headers: authHeaders()
+            });
             const allRequests = await response.json();
 
             adminTable.innerHTML = '';
@@ -903,11 +857,12 @@ window.renderRequests = async function () {
             });
 
         } else {
-            // User view
             adminView.style.display = 'none';
             userView.style.display = 'block';
 
-            const response = await fetch(`http://localhost:4000/requests/email/${currentUser.email}`);
+            const response = await fetch(`http://localhost:4000/requests/email/${currentUser.email}`, {
+                headers: authHeaders()
+            });
             const userRequests = await response.json();
 
             if (userRequests.length === 0) {
@@ -937,12 +892,11 @@ window.renderRequests = async function () {
     }
 };
 
-// Admin approve or reject request
 window.processRequest = async function (id, newStatus) {
     try {
         const response = await fetch(`http://localhost:4000/requests/${id}/status`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify({ status: newStatus })
         });
 
@@ -958,7 +912,6 @@ window.processRequest = async function (id, newStatus) {
     }
 };
 
-// Handle request form submission
 const requestForm = document.getElementById('requestForm');
 if (requestForm) {
     requestForm.addEventListener('submit', async function (e) {
@@ -979,7 +932,7 @@ if (requestForm) {
         try {
             const response = await fetch('http://localhost:4000/requests', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: authHeaders(),
                 body: JSON.stringify({
                     type: document.getElementById('requestType').value,
                     items: items,
